@@ -1,0 +1,10 @@
+Install in the root of your Drupal 7 installation.
+
+Edit convertphpbb.php to set database credentials
+set USERS,FORUMS and POSTS to true
+Alter the STEPSIZE if needed, it's the amount of posts, users etc that is converted at once.
+
+Drop into a shell, and run php convertphpbb.php, make some coffee, give your cat some sweet love etc. This is going to take a little ;)
+
+
+Oh, and no… this software comes without any warranty what so ever!
