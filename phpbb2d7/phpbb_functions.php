@@ -7,7 +7,10 @@ function phpbb_cleanBBCode($text,$bbuid=null) {
     // remove the bb UID thingee
     if (!is_null($bbuid)) {
         $text = preg_replace("/:$bbuid/", '', $text);
+    } else {
+        throw new Exception("No bbcode_uid found!");
     }
+    
     // straight from phpBB code itself
     $match = array(
             '#<!\-\- e \-\-><a href="mailto:(.*?)">.*?</a><!\-\- e \-\->#',

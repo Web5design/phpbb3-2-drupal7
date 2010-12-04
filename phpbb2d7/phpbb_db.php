@@ -49,7 +49,7 @@ class phpbb_DB {
         return $this->getRow($qry)->counter;
     }
 
-    public function phpbb_getActiveUsers($start,$end) {
+    public function phpbb_getActiveUsers($start) {
         $qry = "SELECT u.username as name,u.user_email as mail,u.user_id,u.user_regdate as created,
                    u.user_lastvisit as login, u.user_avatar as picture
             FROM phpbb_users u
@@ -57,7 +57,7 @@ class phpbb_DB {
             AND user_type in(0,3)
             AND u.user_lastvisit >= 0
             ORDER BY user_id
-            LIMIT $start,$end";
+            LIMIT {$start},".STEPSIZE;
         return $this->getRows($qry);
     }
 
@@ -70,20 +70,21 @@ class phpbb_DB {
         return $this->getRows($qry);
     }
 
-    public function phpBB_getTopics($start,$end) { // poster 1 = anonymous, meestal deleted, en  moved_id > 0 is verplaatst topicje
+    public function phpBB_getTopics($start) { // poster 1 = anonymous, meestal deleted, en  moved_id > 0 is verplaatst topicje
         $qry = "SELECT topic_title,topic_poster,topic_time,phpbb_topics.forum_id,topic_status,phpbb_topics.topic_id,
                    topic_first_poster_name as username
             FROM phpbb_topics
             WHERE topic_poster > 1 AND topic_moved_id =0 ORDER BY phpbb_topics.topic_id
-            LIMIT $start,$end";
+            LIMIT {$start},".STEPSIZE;
         return $this->getRows($qry);
     }
 
-    public function phpBB_getPostsByTopic($topic) {
+    public function phpBB_getPostsByTopic($topic,$start) {
         $qry = "SELECT post_id, poster_id,poster_ip, post_time,post_edit_time bbcode_uid,post_text,post_subject
             FROM phpbb_posts
             WHERE topic_id = ".$topic->topic_id."
-            ORDER BY post_time";
+            ORDER BY post_time
+            LIMIT {$start},".STEPSIZE;
         return $this->getRows($qry);
 
     }

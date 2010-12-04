@@ -64,9 +64,7 @@ function dpl_addTopic($topic) {
   $object->comment   = $topic->topic_status;
   $object->created   = $object->timestamp;
 
-  $object->body[$object->language][] = array('summary' => '',
-          'value' => phpbb_cleanBBCode($topic->post_text,$topic->bbcode_uid),
-          'format'=>DRUPAL_FORMAT);
+
   $object->taxonomy_forums[$object->language][] = array('tid' => $object->forum_tid);
   $object->icon = '';
   $object->status = 1;
@@ -74,7 +72,7 @@ function dpl_addTopic($topic) {
   $object->validated = TRUE;
   node_save(&$object);
   $cache["nodes"][$topic->topic_id] = $object->nid;
-  return $object->nid;
+  return $object;
 }
 
 function dpl_addComment($post,$nodeid) {

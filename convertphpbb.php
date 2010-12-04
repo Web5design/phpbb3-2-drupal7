@@ -5,9 +5,10 @@
  * see readme.txt for more information
  *
 */
+ini_set('memory_limit','512m'); // just in case ;)
 
-define('USERS',  false);  # cache/convert users
-define('FORUMS', TRUE);  # cache/convert forums
+define('USERS',  FALSE);  # cache/convert users
+define('FORUMS', FALSE);  # cache/convert forums
 define('POSTS',  TRUE);  # cache/convert posts
 
 define('NL', "\n"); // newline
@@ -66,7 +67,7 @@ if (USERS) {
     $bar->start($userCount);
     for($i=0;$i<$userCount;$i+=STEPSIZE) {
         $start = $i;
-        $users = phpbb_DB::getDB()->phpbb_getActiveUsers($start,STEPSIZE);
+        $users = phpbb_DB::getDB()->phpbb_getActiveUsers($start);
         foreach($users as $newuser) {
             dpl_addUser($newuser);
             $bar->message ='User: '.$newuser->name;
@@ -75,6 +76,7 @@ if (USERS) {
     }
     $bar->finish();
     $i = count($cache['users']);
+    file_put_contents('cacheddata', serialize($cache));
     echo NL."Done, cached {$i} users, elapsed time ".format_interval(timer_read('phpbbconversion')/1000).NL;
 } else {
     echo NL."Fetched users from cache".NL;
@@ -96,35 +98,53 @@ if (FORUMS) {
     convertForumById(0,$bar);
     echo NL."Done, elapsed time ".format_interval(timer_read('phpbbconversion')/1000).NL;
     $bar->finish();
+    file_put_contents('cacheddata', serialize($cache));
 }
 
 if (POSTS) {
     $comment_maintain_node_statistics = variable_get('comment_maintain_node_statistics',true);
-    variable_set('comment_maintain_node_statistics',false);
     $topicCount = phpbb_DB::getDB()->Count('phpbb_topics','topic_poster > 1 AND topic_moved_id =0');
     echo NL."Converting $topicCount topics".NL.NL;
-
     $counter = 1;
-    for($i=0;$i<$topicCount;$i+=STEPSIZE) {
-        $topics = phpbb_DB::getDB()->phpBB_getTopics($i,STEPSIZE);
+    for($topicloop=0;$topicloop<$topicCount;$topicloop+=STEPSIZE) {
+        $topics = phpbb_DB::getDB()->phpBB_getTopics($topicloop);
         foreach ($topics as $topic) {
-            $nodeId = dpl_addTopic($topic);
-            $posts = phpbb_DB::getDB()->phpBB_getPostsByTopic($topic);
-
+            variable_set('comment_maintain_node_statistics',false);
+#            $node = dpl_addTopic($topic);
+            $commentCount = phpbb_DB::getDB()->Count('phpbb_posts','topic_id = '.$topic->topic_id);
             $bar = new progressbar();
-            $bar->start(count($posts));
-            foreach($posts as $post) {
-                $bar->message("topic $counter of $topicCount adding posts");
-                dpl_addComment($post,$nodeId);
-                $bar->next();
-            }
+            $bar->start($commentCount+1);
+            $first = true;
+            for ($commentloop=0;$commentloop<$commentCount;$commentloop+=STEPSIZE) {
+
+                $posts = phpbb_DB::getDB()->phpBB_getPostsByTopic($topic,$commentloop);
+                foreach($posts as $post) {
+                    if ($first) {
+                        $node->body[$node->language][] = array(
+                                'summary' => '','value' => phpbb_cleanBBCode($post->post_text,$post->bbcode_uid),
+                                'format'=>DRUPAL_FORMAT);
+                        node_save($node);
+                        $first = false;
+                    } else {
+                        dpl_addComment($post,$node->nid);
+                    }
+                    $bar->message("adding topic $counter of $topicCount");
+                    $bar->next();
+                }
+            } // end $commentloop
+            $bar->message("updating comment statistics");
+            $bar->next();
             $bar->finish();
+            variable_set('comment_maintain_node_statistics',true);
+            _comment_update_node_statistics($node->nid);
             $counter++;
         }
-    }
+    }  //end topicloop
     variable_set('comment_maintain_node_statistics',$comment_maintain_node_statistics);
 }
 echo NL."Done converting topics, elapsed time ".format_interval(timer_read('phpbbconversion')/1000).NL;
+
+
 echo NL."Done.. Time needed ".format_interval(timer_read('phpbbconversion')/1000).NL.NL;
 
 if($trackerDisabled) {
@@ -132,7 +152,7 @@ if($trackerDisabled) {
 }
 
 // save cache for next run
-file_put_contents('cacheddata', serialize($cache));
+
 
 
 
