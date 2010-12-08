@@ -51,7 +51,7 @@ class phpbb_DB {
 
     public function phpbb_getActiveUsers($start) {
         $qry = "SELECT u.username as name,u.user_email as mail,u.user_id,u.user_regdate as created,
-                   u.user_lastvisit as login, u.user_avatar as picture
+                   u.user_lastvisit as login, u.user_avatar as picture,u.user_password
             FROM phpbb_users u
             WHERE u.user_id NOT IN ( SELECT ban_userid FROM phpbb_banlist )
             AND user_type in(0,3)

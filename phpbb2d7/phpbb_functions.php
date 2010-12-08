@@ -10,7 +10,7 @@ function phpbb_cleanBBCode($text,$bbuid=null) {
     } else {
         throw new Exception("No bbcode_uid found!");
     }
-    
+
     // straight from phpBB code itself
     $match = array(
             '#<!\-\- e \-\-><a href="mailto:(.*?)">.*?</a><!\-\- e \-\->#',
@@ -44,5 +44,33 @@ function convertForumById($forumID,&$bar) {
             convertForumById($forum->forum_id, $bar);
         }
     }
+}
+
+function convertTopic($topic,$counter,$topicCount) {
+    $node = dpl_addTopic($topic);
+    $commentCount = phpbb_DB::getDB()->Count('phpbb_posts','topic_id = '.$topic->topic_id);
+    $bar = new progressbar();
+    $bar->start($commentCount);
+    $first = true;
+    for ($commentloop=0;$commentloop<$commentCount;$commentloop+=STEPSIZE) {
+        $posts = phpbb_DB::getDB()->phpBB_getPostsByTopic($topic,$commentloop);
+        foreach($posts as $post) {
+            if ($first) {
+                $node->is_new = false;
+                $node->body[$node->language][] = array(
+                        'summary' => '','value' => phpbb_cleanBBCode($post->post_text,$post->bbcode_uid),
+                        'format'=>DRUPAL_FORMAT);
+                node_save($node);
+                $first = false;
+            } else {
+                dpl_addComment($post,$node->nid);
+            }
+            $bar->message("adding topic $counter of $topicCount nid ".$node->nid);
+            $bar->next();
+        }
+     
+    }
+    $bar->finish();
+
 }
 ?>

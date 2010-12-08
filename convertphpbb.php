@@ -7,19 +7,19 @@
 */
 ini_set('memory_limit','512m'); // just in case ;)
 
-define('USERS',  FALSE);  # cache/convert users
-define('FORUMS', FALSE);  # cache/convert forums
-define('POSTS',  TRUE);  # cache/convert posts
+define('USERS',  FALSE);  # convert users (cached to disk)
+define('FORUMS', FALSE);  # convert forums (cached to disk)
+define('POSTS',  FALSE);  # convert posts
+define('SYNC' ,  TRUE);  # sybc comment counters
+
 
 define('NL', "\n"); // newline
 define('STEPSIZE', 400); // Number of objects to receive per cycle from DB
 
-define('DRUPAL_FORMAT' , 'filtered_html'); // drupal inpuut filter mode
+define('THREADS',4);
+
+define('DRUPAL_FORMAT' , 'plain_text'); // drupal input filter mode
 define('DRUPAL_ROOT', getcwd());
-
-
-
-echo DRUPAL_ROOT;
 
 // connection to phpBB
 
@@ -42,7 +42,7 @@ require('phpbb2d7/phpbb_functions.php');
 require('phpbb2d7/drupal_functions.php');
 require('phpbb2d7/progressbar.php');
 
-echo NL.'Starting conversion'.NL;
+echo NL.'Here we go, starting conversion at '.date("H:i:s").NL;
 
 
 $modules = module_list(true);
@@ -80,11 +80,8 @@ if (USERS) {
     echo NL."Done, cached {$i} users, elapsed time ".format_interval(timer_read('phpbbconversion')/1000).NL;
 } else {
     echo NL."Fetched users from cache".NL;
-    $cache = unserialize(file_get_contents('cachedusers.txt'));
-    foreach ($cache["users"] as $drupalid => $phpbbid) {
-        $newCache["users"][$drupalid]["uid"] = $phpbbid;
-    }
-    $cache = $newCache;
+    global $cache;
+    $cache = unserialize(file_get_contents('cacheddata'));
 }
 
 
@@ -105,44 +102,34 @@ if (POSTS) {
     $comment_maintain_node_statistics = variable_get('comment_maintain_node_statistics',true);
     $topicCount = phpbb_DB::getDB()->Count('phpbb_topics','topic_poster > 1 AND topic_moved_id =0');
     echo NL."Converting $topicCount topics".NL.NL;
+    variable_set('comment_maintain_node_statistics',false);
     $counter = 1;
     for($topicloop=0;$topicloop<$topicCount;$topicloop+=STEPSIZE) {
         $topics = phpbb_DB::getDB()->phpBB_getTopics($topicloop);
         foreach ($topics as $topic) {
-            variable_set('comment_maintain_node_statistics',false);
-#            $node = dpl_addTopic($topic);
-            $commentCount = phpbb_DB::getDB()->Count('phpbb_posts','topic_id = '.$topic->topic_id);
-            $bar = new progressbar();
-            $bar->start($commentCount+1);
-            $first = true;
-            for ($commentloop=0;$commentloop<$commentCount;$commentloop+=STEPSIZE) {
-
-                $posts = phpbb_DB::getDB()->phpBB_getPostsByTopic($topic,$commentloop);
-                foreach($posts as $post) {
-                    if ($first) {
-                        $node->body[$node->language][] = array(
-                                'summary' => '','value' => phpbb_cleanBBCode($post->post_text,$post->bbcode_uid),
-                                'format'=>DRUPAL_FORMAT);
-                        node_save($node);
-                        $first = false;
-                    } else {
-                        dpl_addComment($post,$node->nid);
-                    }
-                    $bar->message("adding topic $counter of $topicCount");
-                    $bar->next();
-                }
-            } // end $commentloop
-            $bar->message("updating comment statistics");
-            $bar->next();
-            $bar->finish();
-            variable_set('comment_maintain_node_statistics',true);
-            _comment_update_node_statistics($node->nid);
-            $counter++;
+           convertTopic($topic,$counter,$topicCount);
+           $counter++;
         }
-    }  //end topicloop
+    }
     variable_set('comment_maintain_node_statistics',$comment_maintain_node_statistics);
+    echo NL."Done converting topics, elapsed time ".format_interval(timer_read('phpbbconversion')/1000).NL;
 }
-echo NL."Done converting topics, elapsed time ".format_interval(timer_read('phpbbconversion')/1000).NL;
+
+
+if (SYNC) {
+    variable_set('comment_maintain_node_statistics',true);
+    $counter = $topics = db_select('node','node')->fields('node', array('nid'))->condition('type', 'forum')->countQuery()->execute()->fetchCol();
+    $bar = new progressbar();
+    $bar->start($counter[0]);
+        $topics = db_select('node','node')->fields('node', array('nid'))->condition('type', 'forum')->execute()->fetchCol();
+        foreach($topics as $topic) {
+            $bar->message("Syncing topic with node id ".$topic);
+            db_insert('node_comment_statistics')->fields(array("nid" => $topic))->execute();
+            _comment_update_node_statistics($topic);
+            $bar->next();
+        }
+    $bar->finish();
+}
 
 
 echo NL."Done.. Time needed ".format_interval(timer_read('phpbbconversion')/1000).NL.NL;
